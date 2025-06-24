@@ -55,8 +55,8 @@ def compute_controls(model, bounds: dict, resolution: int):
 
     mu, r, sigma, gamma = config["mu"], config["r"], config["sigma"], config["gamma"]
 
-    # Use correct FOCs (from your slide)
-    pi_star = - V_W * (mu - r) / (V_WW * sigma**2 * W)
+    # Optimal control based on the HJB first order condition
+    pi_star = - (mu - r) / (sigma**2) * (V_W / V_WW)
     c_star  = V_W.pow(-1.0 / gamma)
 
 
@@ -122,7 +122,7 @@ def compare_to_merton(model, bounds, resolution, mu, sigma, gamma, r):
     W    = torch.clamp(W,    min=eps)
 
     # Compute using FOCs
-    pi_star_learned = (-V_W * (mu - r)) / (V_WW * sigma**2 * W)
+    pi_star_learned = - (mu - r) / (sigma**2) * (V_W / V_WW)
     c_star_learned  = V_W.pow(-1.0 / gamma)
 
     # Compute Merton analytical values
