@@ -47,10 +47,9 @@ def compute_loss(model, batch, data_dict=None):
     V_WW = torch.clamp(V_WW, min=eps)
     V_W  = torch.clamp(V_W,  min=eps)
 
-    # Compute optimal controls (Merton solution)
-    pi_star = ((config["mu"] - config["r"]) 
-               / (config["sigma"]**2 * (1.0 - config["gamma"]))
-              ) * (W / V_WW)
+    # Compute optimal controls using the HJB first order conditions
+    # dV/dW and d^2V/dW^2 can be negative so we do not clamp the sign here
+    pi_star = - (config["mu"] - config["r"]) / (config["sigma"]**2) * (V_W / V_WW)
 
     c_star = V_W.pow(-1.0 / config["gamma"])
 
