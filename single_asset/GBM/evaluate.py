@@ -36,12 +36,8 @@ def compute_controls(model, bounds: dict, resolution: int):
     Tg, Wg = np.meshgrid(t_vals, W_vals, indexing="ij")
 
     coords = np.stack([Tg.ravel(), Wg.ravel()], axis=1)
-    x_t = torch.tensor(
-        coords,
-        dtype=torch.float32,
-        device=config["device"],
-        requires_grad=True,
-    )
+    x_t = torch.from_numpy(coords).to(config["device"]).float()
+    x_t.requires_grad_(True)
 
     print(f"[DEBUG] Input grid shape: {x_t.shape}")  # Should be (10000, 2)
 
@@ -130,12 +126,8 @@ def compare_to_merton(model, bounds, resolution, mu, sigma, gamma, r):
 
     coords = np.stack([Tg.ravel(), Wg.ravel()], axis=1)
     device = next(model.parameters()).device
-    x_t = torch.tensor(
-        coords,
-        dtype=torch.float32,
-        device=device,
-        requires_grad=True,
-    )
+    x_t = torch.from_numpy(coords).to(device).float()
+    x_t.requires_grad_(True)
 
     V_W = compute_v_w(model, x_t).view(-1)
     V_WW = compute_v_ww(model, x_t).view(-1)

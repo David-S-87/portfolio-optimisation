@@ -1,4 +1,4 @@
-# loss.py
+# loss.py for single_asset/Heston
 
 import torch
 import torch.nn.functional as F
@@ -24,7 +24,7 @@ def compute_loss(model, batch, data_dict=None):
             'v_terminal': Tensor (M, 1) of log V(T, W)
 
     Returns:
-        total_loss: weighted sum of PDE and data losses
+        total_loss: weighted sum of PDE, data, and regularization losses
         loss_pde: HJB residual MSE
         loss_data: terminal MSE
     """
@@ -51,10 +51,9 @@ def compute_loss(model, batch, data_dict=None):
     V_vv = compute_v_vivj(model, x, 0, 0)
     V_Wv = compute_v_wvi(model, x, 0)
 
-    # Stabilize derivatives
-    eps = 1e-6
-    V_W  = torch.clamp(V_W, min=eps)
-    V_WW = torch.clamp(V_WW, min=eps)
+    # Stabilize derivatives to avoid division by zero
+    V_W  = torch.clamp(V_W,  min=1e-4)
+    V_WW = torch.clamp(V_WW, min=1e-4)
 
     # Extract model parameters
     mu    = config["mu"]
@@ -68,7 +67,12 @@ def compute_loss(model, batch, data_dict=None):
 
     # Optimal controls (analytic)
     pi_star = ((mu - r) * V_W + xi * corr * v * V_Wv) / (v * V_WW)
-    c_star  = V_W.pow(-1.0 / gamma)
+
+    V_W  = torch.clamp(V_W,  min=1e-2, max=1e2)  # tighten this clamp
+    c_star = V_W.pow(-1.0 / gamma)
+    c_star = torch.clamp(c_star, max=10.0)       # restrict range of consumption
+
+
 
     # HJB residual terms
     drift_W   = (r * W + pi_star * (mu - r) - c_star) * V_W
@@ -86,13 +90,21 @@ def compute_loss(model, batch, data_dict=None):
 
     # Supervised terminal condition loss (log V)
     loss_data = torch.tensor(0.0, device=device)
-    if data_dict is not None:
-        if "x_terminal" in data_dict and "v_terminal" in data_dict:
-            x_term = data_dict["x_terminal"].to(device)
-            v_true = data_dict["v_terminal"].to(device)
-            v_pred = model(x_term)
-            loss_data = F.mse_loss(v_pred, v_true)
+    if data_dict is not None and "x_terminal" in data_dict:
+        x_term = data_dict["x_terminal"].to(device)
+        v_true = data_dict["v_terminal"].to(device)
+        v_pred = model(x_term)
+        loss_data = F.mse_loss(v_pred, v_true)
+
+    # Regularization on consumption to penalize extreme values
+    reg_coeff = 1e-3
+    reg_loss = reg_coeff * c_star.pow(2).mean()
 
     # Weighted total loss
-    total_loss = config["lambda_pde"] * loss_pde + config["lambda_data"] * loss_data
+    total_loss = (
+        config["lambda_pde"] * loss_pde
+        + config["lambda_data"] * loss_data
+        + reg_loss
+    )
+
     return total_loss, loss_pde, loss_data

@@ -14,3 +14,4 @@ from .nets import (
 
 from .trainer import (train_model)
 
+from .integrals import compute_jump_integral, mjd_jump_fn, bates_jump_fn, multi_asset_jump_fn

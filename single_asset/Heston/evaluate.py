@@ -31,8 +31,13 @@ def compute_controls(model, t0, W_vals, v_vals, config):
     
     # Flatten and build input tensor (t, W, v)
     t_flat = np.full(Wg.size, t0, dtype=np.float32)
-    x_np = np.stack([t_flat, Wg.ravel().astype(np.float32), vg.ravel().astype(np.float32)], axis=1)
-    x = torch.tensor(x_np, requires_grad=True, device=device)
+    x_np = np.stack(
+        [t_flat, Wg.ravel().astype(np.float32), vg.ravel().astype(np.float32)],
+        axis=1,
+    )
+    # Use from_numpy to avoid any unintended broadcasting
+    x = torch.from_numpy(x_np).to(device)
+    x.requires_grad_(True)
     
     # Forward: predict logV, then exp with clamp
     logV = model(x)
@@ -40,9 +45,9 @@ def compute_controls(model, t0, W_vals, v_vals, config):
     V = torch.exp(logV)
     
     # Derivatives of logV
-    V_W  = compute_v_w(model, x)
-    V_WW = compute_v_ww(model, x)
-    V_Wv = compute_v_wvi(model, x, 0)
+    V_W  = compute_v_w(model, x).unsqueeze(-1)
+    V_WW = compute_v_ww(model, x).unsqueeze(-1)
+    V_Wv = compute_v_wvi(model, x, 0).unsqueeze(-1)
     # (we don't need V_v for controls)
     
     # Stabilize denominators
