@@ -65,9 +65,6 @@ def compute_controls(model, bounds: dict, resolution: int):
         config["gamma"],
     )
 
-
-
-    # Optimal control based on the HJB first order condition
     pi_star = - (mu - r) / (sigma**2) * (V_W / V_WW)
     c_star  = V_W.pow(-1.0 / gamma)
 
@@ -148,6 +145,7 @@ def compare_to_merton(model, bounds, resolution, mu, sigma, gamma, r):
     V_W = torch.clamp(V_W, min=eps)
     V_WW = torch.clamp(V_WW, min=eps)
     W = torch.clamp(W, min=eps)
+
 
     pi_star_learned = - (mu - r) / (sigma**2) * (V_W / V_WW)
     c_star_learned  = V_W.pow(-1.0 / gamma)

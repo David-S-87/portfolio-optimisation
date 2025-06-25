@@ -59,7 +59,7 @@ def main():
                         config["eval_resolution"], device=device).unsqueeze(1)
     t_T = torch.ones_like(Ws) * config["T"]
     x_terminal = torch.cat([t_T, Ws], dim=1)
-    v_terminal = Ws.pow(1.0 - config["gamma"]) / (1.0 - config["gamma"])
+    v_terminal = torch.log(Ws.pow(1.0 - config["gamma"]) + 1e-8)
 
     data_dict = {
         "x_terminal": x_terminal,

@@ -51,7 +51,7 @@ def get_config():
         "weight_decay": 0.0,
         "optimizer_name": "adam",
         "lambda_pde": 1.0,
-        "lambda_data": 1.0,
+        "lambda_data": 0.1,
         "grad_clip": 1.0,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "log_every": 100,

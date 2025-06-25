@@ -35,7 +35,10 @@ def compute_loss(model, batch, data_dict=None):
     x = torch.cat([t, W], dim=1)
 
     # Forward pass
-    V = model(x)
+    logV = model(x)
+    logV = torch.clamp(logV, min=-20.0, max=20.0)  # avoid exp overflow
+    V = torch.exp(logV)
+
 
     # Compute derivatives
     V_t  = compute_v_t(model, x)
