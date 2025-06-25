@@ -56,7 +56,7 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
 
     # Jump integral term
     jump_term = compute_jump_integral(
-        model=model,
+        model=lambda z: model(z)[0],
         x=x,
         pi=pi_hat,
         config={

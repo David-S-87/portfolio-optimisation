@@ -9,7 +9,7 @@ from typing import Callable, Optional
 
 
 def compute_jump_integral(
-    model: nn.Module,
+    model: Callable[[Tensor], Tensor],
     x: Tensor,
     pi: Tensor,
     config: dict,
@@ -17,55 +17,45 @@ def compute_jump_integral(
     num_samples: int = 10
 ) -> Tensor:
     """
-    Compute the general jump integral term:
-        I[V](x) = lambda * E_J[ V(x_jump) - V(x) ]
+    Compute the jump integral term
+      I[V](x) = λ E_J[V(t, x_jump) - V(t, x)].
 
-    Args:
-        model: PINN model mapping x -> logV or V
-        x: Tensor, shape (batch_size, input_dim), e.g. [t, W, v1, ...]
-        pi: Tensor, shape (batch_size, d_assets) or (batch_size,)
-        config: dict containing jump parameters:
-            - 'lambda': jump intensity
-            - 'mu_J': mean(s) of jump log-returns J
-            - 'sigma_J': std dev(s) of J
-        jump_fn: function(x, pi, J) -> x_jump of shape (batch*num_samples, input_dim)
-        num_samples: Monte Carlo sample count
-
-    Returns:
-        Tensor of shape (batch_size,), the jump integral term
+    Now safe against tuple outputs and extreme jumps.
     """
-    # Extract jump parameters
+    # Unpack jump parameters
     lambda_ = config.get("lambda") or config.get("lambda_jump")
-    mu_J = config["mu_J"]
+    mu_J    = config["mu_J"]
     sigma_J = config["sigma_J"]
 
     batch_size = x.shape[0]
-    device = x.device
-    # Ensure pi has shape (batch_size, d)
+    device     = x.device
+
+    # Ensure pi is shape (batch, d_assets)
     pi = pi.view(batch_size, -1)
     d_assets = pi.shape[1]
 
-    # Sample jump sizes J ~ N(mu_J, sigma_J)
-    # J shape: (batch_size, num_samples, d_assets)
-    mu = torch.as_tensor(mu_J, device=device)
-    sigma = torch.as_tensor(sigma_J, device=device)
-    # Broadcast mu, sigma to shape (d_assets,) or scalar
-    J = torch.normal(mu, sigma, size=(batch_size, num_samples, d_assets), device=device)
+    # 1️⃣ Sample jumps J with clipping at ±4σ
+    mu = torch.as_tensor(mu_J,    device=device)
+    sd = torch.as_tensor(sigma_J, device=device)
+    J  = torch.normal(mu, sd, size=(batch_size, num_samples, d_assets), device=device)
+    J  = torch.clamp(J, min=mu - 4*sd, max=mu + 4*sd)
 
-    # Generate perturbed inputs via model-specific jump function
-    x_jump = jump_fn(x, pi, J)  # expects shape (batch*num_samples, input_dim)
+    # 2️⃣ Build jumped points
+    x_jump = jump_fn(x, pi, J)  # shape: (batch*num_samples, input_dim)
 
-    # Evaluate model at jumped points: assume model returns logV
-    logV_jump = model(x_jump)
-    logV_jump = torch.clamp(logV_jump, min=-20.0, max=20.0)
-    V_jump = torch.exp(logV_jump).view(batch_size, num_samples)
+    # 3️⃣ Evaluate logV at jumped points, extracting head[0] if tuple
+    raw_jump = model(x_jump)
+    logV_jump = raw_jump[0] if isinstance(raw_jump, tuple) else raw_jump
+    logV_jump = torch.clamp(logV_jump, min=-15.0, max=15.0)
+    V_jump    = torch.exp(logV_jump).view(batch_size, num_samples)
 
-    # Evaluate V at original points
-    logV = model(x)
-    logV = torch.clamp(logV, min=-20.0, max=20.0)
-    V = torch.exp(logV).view(batch_size, 1)
+    # 4️⃣ Evaluate V at original points similarly
+    raw = model(x)
+    logV = raw[0] if isinstance(raw, tuple) else raw
+    logV = torch.clamp(logV, min=-15.0, max=15.0)
+    V    = torch.exp(logV).view(batch_size, 1)
 
-    # Monte Carlo expectation of jump contribution
+    # 5️⃣ Monte-Carlo expectation
     integral = lambda_ * (V_jump.mean(dim=1, keepdim=True) - V)
     return integral.squeeze(1)
 
