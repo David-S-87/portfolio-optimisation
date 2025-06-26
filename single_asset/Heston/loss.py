@@ -80,7 +80,11 @@ def compute_loss(model, batch, data_dict=None):
     diff_WW   = 0.5 * (pi_star ** 2) * v * V_WW
     diff_vv   = 0.5 * (xi ** 2) * v * V_vv
     cross     = pi_star * xi * corr * v * V_Wv
-    utility   = c_star.pow(1.0 - gamma) / (1.0 - gamma)
+    # Use log utility when gamma is close to 1
+    if abs(gamma - 1.0) < 1e-3:
+        utility = torch.log(c_star)
+    else:
+        utility = c_star.pow(1.0 - gamma) / (1.0 - gamma)
 
     residual = (
         V_t + drift_W + drift_v + diff_WW + diff_vv + cross + utility

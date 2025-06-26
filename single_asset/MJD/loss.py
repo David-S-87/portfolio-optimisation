@@ -69,7 +69,11 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
     ).unsqueeze(1)  # ensure shape (N, 1)
 
     # Utility term
-    utility_term = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    # Use log consumption when gamma ~= 1 for numerical stability
+    if abs(gamma - 1.0) < 1e-3:
+        utility_term = torch.log(c_hat)
+    else:
+        utility_term = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
 
     # Residual of the HJB equation
     residual = V_t + drift_term + diffusion_term + jump_term + utility_term - rho * V

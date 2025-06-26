@@ -74,7 +74,11 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
     ).unsqueeze(1)
 
     # --- 7. Utility ---
-    utility = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    # Use log utility when gamma is effectively 1
+    if abs(gamma - 1.0) < 1e-3:
+        utility = torch.log(c_hat)
+    else:
+        utility = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
 
     # --- 8. Residual & Losses ---
     residual = (
