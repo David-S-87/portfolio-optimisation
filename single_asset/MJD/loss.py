@@ -22,6 +22,11 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
         data_dict: optional dict with keys 'x_terminal' and 'v_terminal'
         num_jump_samples: number of Monte Carlo draws for jump integral
 
+    Notes:
+        The network outputs ``pi_hat`` and ``c_hat`` are clamped to ``[-5, 5]``
+        and ``[1e-3, 100]`` respectively before computing the utility term to
+        prevent unstable training.
+
     Returns:
         total_loss, loss_pde, loss_data
     """
@@ -35,6 +40,10 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
 
     # Forward pass through model
     logV, pi_hat, c_hat = model(x)
+    c_hat = torch.clamp(c_hat, min=1e-3, max=100.0)
+
+    # Clamp controls for numerical stability
+    pi_hat = torch.clamp(pi_hat, min=-5.0, max=5.0)
     c_hat = torch.clamp(c_hat, min=1e-3, max=100.0)
 
     # Clamp logV for stability
