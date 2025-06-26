@@ -48,8 +48,6 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
 
     # Clamp logV for stability
     logV = torch.clamp(logV, min=-15.0, max=15.0)
-    if torch.isnan(logV).any():
-        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
     if torch.isnan(V).any():
         raise ValueError("NaN encountered in V")

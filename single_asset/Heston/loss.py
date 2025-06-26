@@ -41,8 +41,6 @@ def compute_loss(model, batch, data_dict=None):
     # Model prediction: log V for numerical stability
     logV = model(x)
     logV = torch.clamp(logV, min=-15.0, max=15.0)
-    if torch.isnan(logV).any():
-        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
     if torch.isnan(V).any():
         raise ValueError("NaN encountered in V")

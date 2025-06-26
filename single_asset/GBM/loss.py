@@ -43,8 +43,6 @@ def compute_loss(model, batch, data_dict=None):
     # Forward pass
     logV = model(x)
     logV = torch.clamp(logV, min=-15.0, max=15.0)  # avoid exp overflow
-    if torch.isnan(logV).any():
-        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
     if torch.isnan(V).any():
         raise ValueError("NaN encountered in V")
