@@ -36,17 +36,23 @@ def compute_loss(model, batch, data_dict=None):
 
     # Forward pass
     logV = model(x)
-    logV = torch.clamp(logV, min=-20.0, max=20.0)  # avoid exp overflow
+    logV = torch.clamp(logV, min=-15.0, max=15.0)  # avoid exp overflow
+    if torch.isnan(logV).any():
+        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
+    if torch.isnan(V).any():
+        raise ValueError("NaN encountered in V")
 
 
     # Compute derivatives
     V_t  = compute_v_t(model, x)
     V_W  = compute_v_w(model, x)
     V_WW = compute_v_ww(model, x)
+    if torch.isnan(V_W).any() or torch.isnan(V_WW).any():
+        raise ValueError("NaN encountered in V_W or V_WW")
 
     # Stabilize denominators
-    eps = 1e-6
+    eps = 1e-4
     V_WW = torch.clamp(V_WW, min=eps)
     V_W  = torch.clamp(V_W,  min=eps)
 
@@ -55,16 +61,25 @@ def compute_loss(model, batch, data_dict=None):
     pi_star = - (config["mu"] - config["r"]) / (config["sigma"]**2) * (V_W / V_WW)
 
     c_star = V_W.pow(-1.0 / config["gamma"])
+    c_star = torch.clamp(c_star, min=1e-3, max=100.0)
 
     # HJB residual
     drift_term     = (config["r"] * W + pi_star * (config["mu"] - config["r"]) - c_star) * V_W
     diffusion_term = 0.5 * (pi_star ** 2) * (config["sigma"] ** 2) * V_WW
-    utility_term   = c_star.pow(1.0 - config["gamma"]) / (1.0 - config["gamma"])
-    residual = (V_t 
-                + drift_term 
-                + diffusion_term 
-                + utility_term 
+    gamma = config["gamma"]
+    if abs(gamma - 1.0) < 1e-3:
+        utility_term = torch.log(c_star)
+    else:
+        utility_term = c_star.pow(1.0 - gamma) / (1.0 - gamma)
+    if torch.isnan(utility_term).any():
+        raise ValueError("NaN encountered in utility_term")
+    residual = (V_t
+                + drift_term
+                + diffusion_term
+                + utility_term
                 - config["rho"] * V)
+    if torch.isnan(residual).any():
+        raise ValueError("NaN encountered in residual")
 
     # PDE loss
     loss_pde = F.mse_loss(residual, torch.zeros_like(residual))
