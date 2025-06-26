@@ -81,12 +81,15 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
     jump_term = torch.clamp(jump_term, min=-1e4, max=1e4)
 
     # --- 7. Utility ---
+
     if abs(gamma - 1.0) < 1e-3:
         utility = torch.log(c_hat)
     else:
         utility = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+
     if torch.isnan(utility).any():
         raise ValueError("NaN encountered in utility")
+
 
     # --- 8. Residual & Losses ---
     residual = (

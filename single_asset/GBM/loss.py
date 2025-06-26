@@ -74,6 +74,7 @@ def compute_loss(model, batch, data_dict=None):
     # HJB residual
     drift_term     = (config["r"] * W + pi_star * (config["mu"] - config["r"]) - c_star) * V_W
     diffusion_term = 0.5 * (pi_star ** 2) * (config["sigma"] ** 2) * V_WW
+
     gamma = config["gamma"]
     if abs(gamma - 1.0) < 1e-3:
         utility_term = torch.log(c_star)
