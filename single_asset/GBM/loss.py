@@ -36,7 +36,7 @@ def compute_loss(model, batch, data_dict=None):
 
     # Forward pass
     logV = model(x)
-    logV = torch.clamp(logV, min=-20.0, max=20.0)  # avoid exp overflow
+    logV = torch.clamp(logV, min=-15.0, max=15.0)  # avoid exp overflow
     V = torch.exp(logV)
 
 

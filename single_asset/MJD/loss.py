@@ -37,7 +37,7 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
     logV, pi_hat, c_hat = model(x)
 
     # Clamp logV for stability
-    logV = torch.clamp(logV, min=-20.0, max=20.0)
+    logV = torch.clamp(logV, min=-15.0, max=15.0)
     V = torch.exp(logV)
 
     # Derivatives of V

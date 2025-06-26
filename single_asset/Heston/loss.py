@@ -40,7 +40,7 @@ def compute_loss(model, batch, data_dict=None):
 
     # Model prediction: log V for numerical stability
     logV = model(x)
-    logV = torch.clamp(logV, min=-20.0, max=20.0)
+    logV = torch.clamp(logV, min=-15.0, max=15.0)
     V = torch.exp(logV)
 
     # Compute derivatives via autograd
