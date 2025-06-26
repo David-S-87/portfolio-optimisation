@@ -23,6 +23,12 @@ def compute_loss(model, batch, data_dict=None):
         total_loss: weighted sum of PDE and data losses
         loss_pde: PDE residual MSE
         loss_data: supervised terminal MSE
+
+    Notes:
+        The computed optimal controls ``pi_star`` and ``c_star`` are clamped
+        to ``[-5, 5]`` and ``[1e-3, 100]`` respectively before being used in
+        the utility terms.  This helps stabilise training by avoiding
+        unrealistic values.
     """
 
     config = get_config()
@@ -55,6 +61,10 @@ def compute_loss(model, batch, data_dict=None):
     pi_star = - (config["mu"] - config["r"]) / (config["sigma"]**2) * (V_W / V_WW)
 
     c_star = V_W.pow(-1.0 / config["gamma"])
+
+    # Clamp the controls to avoid extreme values
+    pi_star = torch.clamp(pi_star, min=-5.0, max=5.0)
+    c_star = torch.clamp(c_star, min=1e-3, max=100.0)
 
     # HJB residual
     drift_term     = (config["r"] * W + pi_star * (config["mu"] - config["r"]) - c_star) * V_W
