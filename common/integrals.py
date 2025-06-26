@@ -48,16 +48,23 @@ def compute_jump_integral(
     logV_jump = raw_jump[0] if isinstance(raw_jump, tuple) else raw_jump
     logV_jump = torch.clamp(logV_jump, min=-15.0, max=15.0)
     V_jump    = torch.exp(logV_jump).view(batch_size, num_samples)
+    if torch.isnan(V_jump).any():
+        raise ValueError("NaN encountered in V_jump")
 
     # 4️⃣ Evaluate V at original points similarly
     raw = model(x)
     logV = raw[0] if isinstance(raw, tuple) else raw
     logV = torch.clamp(logV, min=-15.0, max=15.0)
     V    = torch.exp(logV).view(batch_size, 1)
+    if torch.isnan(V).any():
+        raise ValueError("NaN encountered in V base")
 
     # 5️⃣ Monte-Carlo expectation
     integral = lambda_ * (V_jump.mean(dim=1, keepdim=True) - V)
-    return integral.squeeze(1)
+    integral = torch.clamp(integral.squeeze(1), min=-1e4, max=1e4)
+    if torch.isnan(integral).any():
+        raise ValueError("NaN encountered in jump integral")
+    return integral
 
 
 def mjd_jump_fn(x: Tensor, pi: Tensor, J: Tensor) -> Tensor:

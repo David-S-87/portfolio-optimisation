@@ -40,8 +40,12 @@ def compute_loss(model, batch, data_dict=None):
 
     # Model prediction: log V for numerical stability
     logV = model(x)
-    logV = torch.clamp(logV, min=-20.0, max=20.0)
+    logV = torch.clamp(logV, min=-15.0, max=15.0)
+    if torch.isnan(logV).any():
+        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
+    if torch.isnan(V).any():
+        raise ValueError("NaN encountered in V")
 
     # Compute derivatives via autograd
     V_t  = compute_v_t(model, x)
@@ -54,6 +58,8 @@ def compute_loss(model, batch, data_dict=None):
     # Stabilize derivatives to avoid division by zero
     V_W  = torch.clamp(V_W,  min=1e-4)
     V_WW = torch.clamp(V_WW, min=1e-4)
+    if torch.isnan(V_W).any() or torch.isnan(V_WW).any():
+        raise ValueError("NaN encountered in V_W or V_WW")
 
     # Extract model parameters
     mu    = config["mu"]
@@ -70,7 +76,7 @@ def compute_loss(model, batch, data_dict=None):
 
     V_W  = torch.clamp(V_W,  min=1e-2, max=1e2)  # tighten this clamp
     c_star = V_W.pow(-1.0 / gamma)
-    c_star = torch.clamp(c_star, max=10.0)       # restrict range of consumption
+    c_star = torch.clamp(c_star, min=1e-3, max=10.0)       # restrict range of consumption
 
 
 
@@ -80,12 +86,19 @@ def compute_loss(model, batch, data_dict=None):
     diff_WW   = 0.5 * (pi_star ** 2) * v * V_WW
     diff_vv   = 0.5 * (xi ** 2) * v * V_vv
     cross     = pi_star * xi * corr * v * V_Wv
-    utility   = c_star.pow(1.0 - gamma) / (1.0 - gamma)
+    if abs(gamma - 1.0) < 1e-3:
+        utility = torch.log(c_star)
+    else:
+        utility = c_star.pow(1.0 - gamma) / (1.0 - gamma)
+    if torch.isnan(utility).any():
+        raise ValueError("NaN encountered in utility")
 
     residual = (
         V_t + drift_W + drift_v + diff_WW + diff_vv + cross + utility
         - rho * V
     )
+    if torch.isnan(residual).any():
+        raise ValueError("NaN encountered in residual")
     loss_pde = F.mse_loss(residual, torch.zeros_like(residual))
 
     # Supervised terminal condition loss (log V)

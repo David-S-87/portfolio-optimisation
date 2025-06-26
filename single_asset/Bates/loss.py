@@ -32,18 +32,24 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
     logV, pi_hat, c_hat = model(x)
     # clamp network outputs
     logV   = torch.clamp(logV,   min=-15.0, max=15.0)
+    if torch.isnan(logV).any():
+        raise ValueError("NaN encountered in logV")
     pi_hat = torch.clamp(pi_hat, min=-5.0,  max=5.0)
-    c_hat  = torch.clamp(c_hat,  min=1e-4,  max=100.0)
+    c_hat  = torch.clamp(c_hat,  min=1e-3,  max=100.0)
 
     V = torch.exp(logV)
+    if torch.isnan(V).any():
+        raise ValueError("NaN encountered in V")
 
     # --- 3. Derivatives ---
     V_t  = compute_v_t(model, x)
-    V_W  = torch.clamp(compute_v_w(model, x),  min=1e-3)
+    V_W  = torch.clamp(compute_v_w(model, x),  min=1e-4)
     V_v  = compute_v_vi(model, x, 0)
-    V_WW = torch.clamp(compute_v_ww(model, x), min=1e-3)
+    V_WW = torch.clamp(compute_v_ww(model, x), min=1e-4)
     V_vv = compute_v_vivj(model, x, 0, 0)
     V_Wv = compute_v_wvi(model, x, 0)
+    if torch.isnan(V_W).any() or torch.isnan(V_WW).any():
+        raise ValueError("NaN encountered in V_W or V_WW")
 
     # --- 4. Parameters ---
     mu, r, gamma = config["mu"], config["r"], config["gamma"]
@@ -72,9 +78,15 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
         jump_fn=bates_jump_fn,
         num_samples=num_jump_samples
     ).unsqueeze(1)
+    jump_term = torch.clamp(jump_term, min=-1e4, max=1e4)
 
     # --- 7. Utility ---
-    utility = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    if abs(gamma - 1.0) < 1e-3:
+        utility = torch.log(c_hat)
+    else:
+        utility = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    if torch.isnan(utility).any():
+        raise ValueError("NaN encountered in utility")
 
     # --- 8. Residual & Losses ---
     residual = (
@@ -83,6 +95,10 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
         + jump_term + utility
         - rho * V
     )
+    if torch.isnan(jump_term).any():
+        raise ValueError("NaN encountered in jump_term")
+    if torch.isnan(residual).any():
+        raise ValueError("NaN encountered in residual")
     loss_pde = F.mse_loss(residual, torch.zeros_like(residual))
 
     # supervised terminal loss

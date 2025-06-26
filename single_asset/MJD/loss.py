@@ -35,15 +35,22 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
 
     # Forward pass through model
     logV, pi_hat, c_hat = model(x)
+    c_hat = torch.clamp(c_hat, min=1e-3, max=100.0)
 
     # Clamp logV for stability
-    logV = torch.clamp(logV, min=-20.0, max=20.0)
+    logV = torch.clamp(logV, min=-15.0, max=15.0)
+    if torch.isnan(logV).any():
+        raise ValueError("NaN encountered in logV")
     V = torch.exp(logV)
+    if torch.isnan(V).any():
+        raise ValueError("NaN encountered in V")
 
     # Derivatives of V
     V_t = compute_v_t(model, x)
     V_W = torch.clamp(compute_v_w(model, x), min=1e-4)
     V_WW = torch.clamp(compute_v_ww(model, x), min=1e-4)
+    if torch.isnan(V_W).any() or torch.isnan(V_WW).any():
+        raise ValueError("NaN encountered in V_W or V_WW")
 
     # Model parameters
     mu, sigma = config["mu"], config["sigma"]
@@ -67,12 +74,22 @@ def compute_loss(model, batch, data_dict=None, num_jump_samples=10):
         jump_fn=mjd_jump_fn,
         num_samples=num_jump_samples
     ).unsqueeze(1)  # ensure shape (N, 1)
+    jump_term = torch.clamp(jump_term, min=-1e4, max=1e4)
 
     # Utility term
-    utility_term = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    if abs(gamma - 1.0) < 1e-3:
+        utility_term = torch.log(c_hat)
+    else:
+        utility_term = c_hat.pow(1.0 - gamma) / (1.0 - gamma)
+    if torch.isnan(utility_term).any():
+        raise ValueError("NaN encountered in utility_term")
 
     # Residual of the HJB equation
     residual = V_t + drift_term + diffusion_term + jump_term + utility_term - rho * V
+    if torch.isnan(jump_term).any():
+        raise ValueError("NaN encountered in jump_term")
+    if torch.isnan(residual).any():
+        raise ValueError("NaN encountered in residual")
 
     # PDE loss
     loss_pde = F.mse_loss(residual, torch.zeros_like(residual))
